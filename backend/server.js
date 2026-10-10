@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const path = require("path");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("./models/User");
@@ -11,6 +12,9 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// Serve the website (frontend folder) from this same server
+app.use(express.static(path.join(__dirname, "../frontend")));
 
 mongoose
     .connect(process.env.MONGO_URI)
@@ -41,10 +45,6 @@ function requireAdmin(req, res, next) {
     }
     next();
 }
-
-app.get("/", (req, res) => {
-    res.send("GiveBack server is running!");
-});
 
 // ---------- List of NGOs (only NGOs verified by the admin) ----------
 app.get("/api/ngos", async (req, res) => {
@@ -336,7 +336,7 @@ app.get("/api/admin/donations", requireLogin, requireAdmin, async (req, res) => 
     }
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
     console.log("Server running at http://localhost:" + PORT);
