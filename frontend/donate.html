@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Donate - GiveBack</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <nav>
+        <div class="logo">GiveBack</div>
+        <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="donate.html">Donate</a></li>
+            <li><a href="my-donations.html">My Donations</a></li>
+            <li><a href="login.html">Login</a></li>
+            <li><a href="register.html" class="nav-cta">Register</a></li>
+        </ul>
+    </nav>
+
+    <div class="form-container">
+        <h2>Donate Items</h2>
+
+        <form id="donateForm">
+            <label for="category">Item Category</label>
+            <select id="category" required>
+                <option value="">-- Select --</option>
+                <option value="Clothes">Clothes</option>
+                <option value="Kitchen Utensils">Kitchen Utensils</option>
+                <option value="Furniture">Furniture</option>
+                <option value="Books">Books</option>
+                <option value="Other">Other</option>
+            </select>
+
+            <label for="quantity">Quantity</label>
+            <input type="number" id="quantity" min="1" placeholder="e.g. 5" required>
+
+            <label for="description">Description</label>
+            <textarea id="description" rows="3" placeholder="Condition, size, any details" required></textarea>
+
+            <label for="ngo">Choose an NGO</label>
+            <select id="ngo" required>
+                <option value="">Loading NGOs...</option>
+            </select>
+
+            <label for="pickupAddress">Pickup Address</label>
+            <input type="text" id="pickupAddress" placeholder="Where should we collect from?" required>
+
+            <label for="pickupDate">Pickup Date</label>
+            <input type="date" id="pickupDate" required>
+
+            <button type="submit">Schedule Donation</button>
+        </form>
+
+        <p id="message" class="form-note"></p>
+    </div>
+
+    <footer>© 2026 GiveBack · Donation & Reuse Platform</footer>
+
+    <script>
+        const API = "http://localhost:3000";
+        const token = localStorage.getItem("token");
+
+        // Must be logged in to donate
+        if (!token) {
+            window.location.href = "login.html";
+        }
+
+        const form = document.getElementById("donateForm");
+        const message = document.getElementById("message");
+        const ngoSelect = document.getElementById("ngo");
+
+        // Do not allow dates in the past
+        document.getElementById("pickupDate").min = new Date().toISOString().split("T")[0];
+
+        // Load NGO list from the server
+        async function loadNgos() {
+            try {
+                const response = await fetch(API + "/api/ngos");
+                const ngos = await response.json();
+
+                if (ngos.length === 0) {
+                    ngoSelect.innerHTML = '<option value="">No NGOs registered yet</option>';
+                    return;
+                }
+
+                ngoSelect.innerHTML = '<option value="">-- Select --</option>';
+                ngos.forEach(function (ngo) {
+                    const option = document.createElement("option");
+                    option.value = ngo.id;
+                    option.textContent = ngo.name + " (" + ngo.city + ")";
+                    ngoSelect.appendChild(option);
+                });
+            } catch (error) {
+                ngoSelect.innerHTML = '<option value="">Could not load NGOs</option>';
+            }
+        }
+
+        loadNgos();
+
+        form.addEventListener("submit", async function (event) {
+            event.preventDefault();
+
+            const data = {
+                category: document.getElementById("category").value,
+                quantity: document.getElementById("quantity").value,
+                description: document.getElementById("description").value,
+                ngoId: document.getElementById("ngo").value,
+                pickupAddress: document.getElementById("pickupAddress").value,
+                pickupDate: document.getElementById("pickupDate").value
+            };
+
+            try {
+                const response = await fetch(API + "/api/donations", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer " + token
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (response.status === 401) {
+                    localStorage.removeItem("token");
+                    window.location.href = "login.html";
+                    return;
+                }
+
+                message.textContent = result.message;
+
+                if (response.ok) {
+                    message.className = "form-note msg-success";
+                    form.reset();
+                    setTimeout(function () {
+                        window.location.href = "my-donations.html";
+                    }, 1200);
+                } else {
+                    message.className = "form-note msg-error";
+                }
+            } catch (error) {
+                message.textContent = "Cannot reach the server. Is it running?";
+                message.className = "form-note msg-error";
+            }
+        });
+    </script>
+
+</body>
+
+</html>

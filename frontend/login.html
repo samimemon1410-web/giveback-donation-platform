@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - GiveBack</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <nav>
+        <div class="logo">GiveBack</div>
+        <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="donate.html">Donate</a></li>
+            <li><a href="my-donations.html">My Donations</a></li>
+            <li><a href="login.html">Login</a></li>
+            <li><a href="register.html" class="nav-cta">Register</a></li>
+        </ul>
+    </nav>
+
+    <div class="form-container">
+        <h2>Welcome Back</h2>
+
+        <form id="loginForm">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" placeholder="you@example.com" required>
+
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" placeholder="Your password" required>
+
+            <button type="submit">Login</button>
+        </form>
+
+        <p id="message" class="form-note"></p>
+        <p class="form-note">New here? <a href="register.html">Create an account</a></p>
+    </div>
+
+    <footer>© 2026 GiveBack · Donation & Reuse Platform</footer>
+
+    <script>
+        const form = document.getElementById("loginForm");
+        const message = document.getElementById("message");
+
+        form.addEventListener("submit", async function (event) {
+            event.preventDefault();
+
+            const data = {
+                email: document.getElementById("email").value,
+                password: document.getElementById("password").value
+            };
+
+            try {
+                const response = await fetch("http://localhost:3000/api/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                message.textContent = result.message;
+
+                if (response.ok) {
+                    message.className = "form-note msg-success";
+                    localStorage.setItem("token", result.token);
+                    localStorage.setItem("user", JSON.stringify(result.user));
+                    setTimeout(function () {
+                        if (result.user.role === "admin") {
+                            window.location.href = "admin-dashboard.html";
+                        } else if (result.user.role === "ngo") {
+                            window.location.href = "ngo-dashboard.html";
+                        } else {
+                            window.location.href = "index.html";
+                        }
+                    }, 1200);
+                } else {
+                    message.className = "form-note msg-error";
+                }
+            } catch (error) {
+                message.textContent = "Cannot reach the server. Is it running?";
+                message.className = "form-note msg-error";
+            }
+        });
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - GiveBack</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <nav>
+        <div class="logo">GiveBack</div>
+        <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="admin-dashboard.html">Admin Dashboard</a></li>
+            <li><button class="logout-btn" id="logoutBtn">Logout</button></li>
+        </ul>
+    </nav>
+
+    <div class="page-container">
+        <h2>Admin Dashboard</h2>
+        <p class="sub" id="welcome">Overview of the whole platform.</p>
+
+        <!-- Numbers -->
+        <div class="stats stats-4">
+            <div class="stat-card"><span id="statDonors">0</span>
+                <p>Donors</p>
+            </div>
+            <div class="stat-card"><span id="statNgos">0</span>
+                <p>NGOs (verified)</p>
+            </div>
+            <div class="stat-card"><span id="statDonations">0</span>
+                <p>Donations</p>
+            </div>
+            <div class="stat-card"><span id="statCollected">0</span>
+                <p>Collected</p>
+            </div>
+        </div>
+
+        <p id="message" class="form-note"></p>
+
+        <!-- Report: status and categories -->
+        <div class="report-grid">
+            <div class="report-card">
+                <h3>Donations by status</h3>
+                <div id="statusBars"></div>
+            </div>
+            <div class="report-card">
+                <h3>Items by category</h3>
+                <div id="categoryBars"></div>
+            </div>
+        </div>
+
+        <!-- NGO verification -->
+        <h3 class="admin-title">NGO Verification</h3>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>NGO</th>
+                        <th>Contact</th>
+                        <th>Address</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="ngoBody"></tbody>
+            </table>
+            <p class="empty-note" id="ngoEmpty" style="display:none;">No NGOs have registered yet.</p>
+        </div>
+
+        <!-- All donations -->
+        <h3 class="admin-title">All Donations</h3>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Donor</th>
+                        <th>Item</th>
+                        <th>Qty</th>
+                        <th>NGO</th>
+                        <th>Pickup Date</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="donationBody"></tbody>
+            </table>
+            <p class="empty-note" id="donationEmpty" style="display:none;">No donations yet.</p>
+        </div>
+    </div>
+
+    <footer>© 2026 GiveBack · Donation & Reuse Platform</footer>
+
+    <script>
+        const API = "http://localhost:3000";
+        const token = localStorage.getItem("token");
+        const user = JSON.parse(localStorage.getItem("user") || "null");
+
+        // Only logged-in admins may use this page
+        if (!token || !user || user.role !== "admin") {
+            window.location.href = "login.html";
+        }
+
+        if (user) {
+            document.getElementById("welcome").textContent =
+                "Hello, " + user.name + ". Here is an overview of the whole platform.";
+        }
+
+        document.getElementById("logoutBtn").addEventListener("click", function () {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            window.location.href = "login.html";
+        });
+
+        const message = document.getElementById("message");
+
+        // Small helper to call the server with the admin's token
+        async function apiGet(path) {
+            const response = await fetch(API + path, {
+                headers: { "Authorization": "Bearer " + token }
+            });
+            if (response.status === 401 || response.status === 403) {
+                localStorage.removeItem("token");
+                localStorage.removeItem("user");
+                window.location.href = "login.html";
+                throw new Error("Not allowed");
+            }
+            return response.json();
+        }
+
+        function addCell(row, text) {
+            const cell = document.createElement("td");
+            cell.textContent = text;
+            row.appendChild(cell);
+            return cell;
+        }
+
+        function addBadge(cell, text, statusClass) {
+            const badge = document.createElement("span");
+            badge.className = "status " + statusClass;
+            badge.textContent = text;
+            cell.appendChild(badge);
+        }
+
+        // Draws simple horizontal bars
+        function drawBars(containerId, rows) {
+            const box = document.getElementById(containerId);
+            box.innerHTML = "";
+
+            if (rows.length === 0) {
+                box.innerHTML = '<p class="muted-small">No data yet.</p>';
+                return;
+            }
+
+            const max = Math.max.apply(null, rows.map(function (r) { return r.value; })) || 1;
+
+            rows.forEach(function (r) {
+                const line = document.createElement("div");
+                line.className = "bar-row";
+
+                const label = document.createElement("span");
+                label.className = "bar-label";
+                label.textContent = r.label;
+
+                const track = document.createElement("div");
+                track.className = "bar-track";
+                const fill = document.createElement("div");
+                fill.className = "bar-fill";
+                fill.style.width = (r.value / max) * 100 + "%";
+                track.appendChild(fill);
+
+                const value = document.createElement("span");
+                value.className = "bar-value";
+                value.textContent = r.value;
+
+                line.appendChild(label);
+                line.appendChild(track);
+                line.appendChild(value);
+                box.appendChild(line);
+            });
+        }
+
+        async function loadStats() {
+            const s = await apiGet("/api/admin/stats");
+
+            document.getElementById("statDonors").textContent = s.donors;
+            document.getElementById("statNgos").textContent = s.ngos + " (" + s.verifiedNgos + ")";
+            document.getElementById("statDonations").textContent = s.donations;
+            document.getElementById("statCollected").textContent = s.status.Collected;
+
+            drawBars("statusBars", [
+                { label: "Pending", value: s.status.Pending },
+                { label: "Accepted", value: s.status.Accepted },
+                { label: "Collected", value: s.status.Collected },
+                { label: "Cancelled", value: s.status.Cancelled }
+            ]);
+
+            drawBars("categoryBars", s.byCategory.map(function (c) {
+                return { label: c._id, value: c.items };
+            }));
+        }
+
+        async function setVerified(id, verified) {
+            try {
+                const response = await fetch(API + "/api/admin/ngos/" + id + "/verify", {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer " + token
+                    },
+                    body: JSON.stringify({ verified: verified })
+                });
+                const result = await response.json();
+                message.textContent = result.message;
+                message.className = response.ok ? "form-note msg-success" : "form-note msg-error";
+                loadAll();
+            } catch (error) {
+                message.textContent = "Cannot reach the server. Is it running?";
+                message.className = "form-note msg-error";
+            }
+        }
+
+        async function loadNgos() {
+            const ngos = await apiGet("/api/admin/ngos");
+            const body = document.getElementById("ngoBody");
+            body.innerHTML = "";
+            document.getElementById("ngoEmpty").style.display = ngos.length === 0 ? "block" : "none";
+
+            ngos.forEach(function (n) {
+                const row = document.createElement("tr");
+                addCell(row, n.name);
+                addCell(row, n.email + ", " + n.phone);
+                addCell(row, n.address);
+
+                const statusCell = addCell(row, "");
+                if (n.verified) {
+                    addBadge(statusCell, "Verified", "status-Collected");
+                } else {
+                    addBadge(statusCell, "Not verified", "status-Pending");
+                }
+
+                const actionCell = addCell(row, "");
+                const button = document.createElement("button");
+                if (n.verified) {
+                    button.textContent = "Remove";
+                    button.className = "action-btn btn-reject";
+                    button.addEventListener("click", function () { setVerified(n._id, false); });
+                } else {
+                    button.textContent = "Verify";
+                    button.className = "action-btn btn-accept";
+                    button.addEventListener("click", function () { setVerified(n._id, true); });
+                }
+                actionCell.appendChild(button);
+
+                body.appendChild(row);
+            });
+        }
+
+        async function loadDonations() {
+            const donations = await apiGet("/api/admin/donations");
+            const body = document.getElementById("donationBody");
+            body.innerHTML = "";
+            document.getElementById("donationEmpty").style.display = donations.length === 0 ? "block" : "none";
+
+            donations.forEach(function (d) {
+                const row = document.createElement("tr");
+                addCell(row, d.donor ? d.donor.name : "Unknown");
+                addCell(row, d.category + ": " + d.description);
+                addCell(row, d.quantity);
+                addCell(row, d.ngoName);
+                addCell(row, d.pickupDate);
+                const statusCell = addCell(row, "");
+                addBadge(statusCell, d.status, "status-" + d.status);
+                body.appendChild(row);
+            });
+        }
+
+        async function loadAll() {
+            try {
+                await loadStats();
+                await loadNgos();
+                await loadDonations();
+            } catch (error) {
+                if (error.message !== "Not allowed") {
+                    message.textContent = "Cannot reach the server. Is it running?";
+                    message.className = "form-note msg-error";
+                }
+            }
+        }
+
+        loadAll();
+    </script>
+
+</body>
+
+</html>
